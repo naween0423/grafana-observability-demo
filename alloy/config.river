@@ -1,0 +1,41 @@
+// 1. Target log files created by Spring Boot Service
+local.file_match "springboot_logs" {
+  path_targets = [{
+    __path__ = "/var/log/springboot-app/*.log",
+    job      = "springboot-backend",
+    app      = "observability-demo",
+  }]
+}
+
+// 2. Read logs from matched log files
+loki.source.file "log_scraper" {
+  targets    = local.file_match.springboot_logs.targets
+  forward_to = [loki.process.parse_logs.receiver]
+}
+
+// 3. Process logs (extract labels & structure)
+loki.process "parse_logs" {
+  stage.logfmt {
+    mapping = {
+      "level"      = "level",
+      "appVersion" = "appVersion",
+      "userId"     = "userId",
+      "msg"        = "msg",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "level",
+    }
+  }
+
+  forward_to = [loki.write.endpoint.receiver]
+}
+
+// 4. Export processed logs to Loki
+loki.write "endpoint" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

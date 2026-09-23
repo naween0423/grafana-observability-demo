@@ -1,0 +1,3 @@
+com/example/observability/ObservabilityApplication.class
+com/example/observability/controller/LogPayload.class
+com/example/observability/controller/LogController.class

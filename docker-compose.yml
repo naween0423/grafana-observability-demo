@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # 1. Spring Boot Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - app-logs:/var/log/springboot-app
+    networks:
+      - observability-net
+
+  # 2. Frontend Client Application
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "8000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    networks:
+      - observability-net
+
+  # 3. Grafana Alloy (Telemetry Collector)
+  alloy:
+    image: grafana/alloy:latest
+    ports:
+      - "12345:12345" # Alloy UI & Debug Inspector
+    volumes:
+      - ./alloy/config.river:/etc/alloy/config.river:ro
+      - app-logs:/var/log/springboot-app:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.river
+    networks:
+      - observability-net
+    depends_on:
+      - loki
+
+  # 4. Grafana Loki (Log Storage Engine)
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - observability-net
+
+  # 5. Grafana (Visualization & Dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - observability-net
+    depends_on:
+      - loki
+
+volumes:
+  app-logs:
+
+networks:
+  observability-net:
+    driver: bridge
